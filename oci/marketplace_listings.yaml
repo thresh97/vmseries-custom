@@ -1,0 +1,9 @@
+byol:
+  name: "Palo Alto Networks VM-Series Next Generation Firewall"
+  pricing_type: "BYOL"
+bundle1:
+  name: "Palo Alto Networks VM-Series Next Generation Firewall"
+  pricing_type: "PAYG"
+bundle2:
+  name: "Palo Alto Networks VM-Series Next Generation Firewall"
+  pricing_type: "PAYG"

@@ -184,6 +184,99 @@ VM-Series on GCP is bootstrapped via **instance metadata key-value pairs**. The 
 - `vm-series-auto-registration-pin-id: <pin-id>` — auto-registration
 - `vm-series-auto-registration-pin-value: <pin-value>` — auto-registration
 
+## gcloud CLI: Marketplace Discovery
+
+`gcp_marketplace_explorer.py` is the recommended discovery tool. If you prefer native `gcloud` commands directly, the following are equivalent.
+
+**List all VM-Series images in the public PAN project, sorted newest first:**
+
+```bash
+gcloud compute images list \
+  --project paloaltonetworks-public \
+  --no-standard-images \
+  --filter="name~'vmseries-flex'" \
+  --format="table(name,creationTimestamp,family,status)" \
+  --sort-by="~creationTimestamp"
+```
+
+**Filter by license type (byol / bundle1 / bundle2):**
+
+```bash
+gcloud compute images list \
+  --project paloaltonetworks-public \
+  --no-standard-images \
+  --filter="name~'vmseries-flex-byol'" \
+  --format="table(name,creationTimestamp,family)" \
+  --sort-by="~creationTimestamp"
+```
+
+**Get the latest image in a specific family:**
+
+```bash
+gcloud compute images describe-from-family vmseries-flex-byol-1014 \
+  --project paloaltonetworks-public \
+  --format="value(name,selfLink,creationTimestamp)"
+```
+
+**List custom images you have created in your project:**
+
+```bash
+gcloud compute images list \
+  --project my-gcp-project \
+  --filter="name~'custom'" \
+  --format="table(name,creationTimestamp,selfLink,status)" \
+  --sort-by="~creationTimestamp"
+```
+
+---
+
+## gcloud CLI: Regional Image Distribution
+
+**GCP images are global** — a single image is accessible from any region without copying. When you deploy an instance in any region using a self_link or family reference from your project, GCP uses the same image regardless of where the instance runs.
+
+No regional copy step is required.
+
+**Verify your custom image is accessible project-wide:**
+
+```bash
+gcloud compute images describe my-golden-vmseries \
+  --project my-gcp-project \
+  --format="value(name,selfLink,status)"
+```
+
+**Share an image with another GCP project** (grant compute.imageUser role):
+
+```bash
+gcloud compute images add-iam-policy-binding my-golden-vmseries \
+  --project my-gcp-project \
+  --member="serviceAccount:other-project@appspot.gserviceaccount.com" \
+  --role="roles/compute.imageUser"
+```
+
+**Or make it publicly accessible** (not recommended for golden images):
+
+```bash
+gcloud compute images add-iam-policy-binding my-golden-vmseries \
+  --project my-gcp-project \
+  --member="allAuthenticatedUsers" \
+  --role="roles/compute.imageUser"
+```
+
+**Deploy from the image in a different region** (no copy needed — just reference the self_link):
+
+```bash
+python gcp_create_infra.py create \
+  --project-id my-gcp-project \
+  --region asia-east1 \
+  --name-tag pa-fw-asia \
+  --allowed-ips "YOUR_IP/32" \
+  --custom-image-self-link "https://www.googleapis.com/compute/v1/projects/my-gcp-project/global/images/my-golden-vmseries" \
+  --license-type byol \
+  --ssh-key-file ~/.ssh/id_rsa
+```
+
+---
+
 ## marketplace_images.yaml
 
 Maps license types to GCP image project/family. Update this file if PAN publishes new image families:

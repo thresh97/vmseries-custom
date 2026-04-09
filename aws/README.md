@@ -380,6 +380,100 @@ python aws_marketplace_explorer.py allow-launch \
 
 ---
 
+## AWS CLI: Marketplace Discovery
+
+The `aws_marketplace_explorer.py` script is the recommended way to discover AMIs. If you prefer native AWS CLI commands directly, the following are equivalent.
+
+**List all available VM-Series AMIs for a license type in a region, sorted newest first:**
+
+```bash
+# byol-x86 product code — see product_codes.yaml for others
+aws ec2 describe-images \
+  --owners aws-marketplace \
+  --filters "Name=product-code,Values=6njl1pau431dv1qxipg63mvah" \
+  --query 'sort_by(Images, &CreationDate) | reverse(@) | [].[ImageId,Name,CreationDate]' \
+  --output table \
+  --region us-east-1
+```
+
+**Find the product code for a known AMI ID:**
+
+```bash
+aws ec2 describe-images \
+  --image-ids ami-0123456789abcdef0 \
+  --query 'Images[0].ProductCodes' \
+  --region us-east-1
+```
+
+**Check which AMI versions are available in a different region:**
+
+```bash
+aws ec2 describe-images \
+  --owners aws-marketplace \
+  --filters "Name=product-code,Values=6njl1pau431dv1qxipg63mvah" \
+  --query 'sort_by(Images, &CreationDate) | reverse(@) | [0:5].[ImageId,Name,CreationDate]' \
+  --output table \
+  --region eu-west-1
+```
+
+---
+
+## AWS CLI: Regional Image Distribution
+
+AMIs are region-specific. After creating a golden AMI in one region, copy it to each target region before deploying there.
+
+**Copy to a single region:**
+
+```bash
+aws ec2 copy-image \
+  --source-region us-east-1 \
+  --source-image-id ami-0123456789abcdef0 \
+  --region us-west-2 \
+  --name "vmseries-golden-11.1.2" \
+  --description "VM-Series 11.1.2 golden image"
+# Returns the new AMI ID in the destination region immediately (copy is async)
+```
+
+**Check copy status:**
+
+```bash
+aws ec2 describe-images \
+  --image-ids ami-NEWID \
+  --region us-west-2 \
+  --query 'Images[0].[State,Name]' \
+  --output text
+# State will be "pending" until available
+```
+
+**Copy to multiple regions (loop):**
+
+```bash
+SOURCE_REGION=us-east-1
+SOURCE_AMI=ami-0123456789abcdef0
+IMAGE_NAME="vmseries-golden-11.1.2"
+
+for REGION in us-west-2 eu-west-1 ap-southeast-1 ap-northeast-1; do
+  NEW_AMI=$(aws ec2 copy-image \
+    --source-region "$SOURCE_REGION" \
+    --source-image-id "$SOURCE_AMI" \
+    --region "$REGION" \
+    --name "$IMAGE_NAME" \
+    --query 'ImageId' --output text)
+  echo "$REGION: $NEW_AMI"
+done
+```
+
+**Wait for all copies to become available:**
+
+```bash
+for REGION in us-west-2 eu-west-1 ap-southeast-1; do
+  aws ec2 wait image-available --image-ids <AMI-ID-IN-REGION> --region "$REGION"
+  echo "$REGION: ready"
+done
+```
+
+---
+
 ## Full Argument Reference
 
 ```

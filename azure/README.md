@@ -339,6 +339,133 @@ python azure_marketplace_explorer.py find-regional-inconsistencies --license-typ
 
 ---
 
+## Azure CLI: Marketplace Discovery
+
+The `azure_marketplace_explorer.py` script is the recommended way to discover VM-Series versions. If you prefer native Azure CLI commands directly, the following are equivalent.
+
+**List all available VM-Series SKUs (license types) for an offer:**
+
+```bash
+az vm image list-skus \
+  --publisher paloaltonetworks \
+  --offer vmseries-flex \
+  --location eastus \
+  --output table
+```
+
+**List all versions for a SKU, sorted newest first:**
+
+```bash
+az vm image list-versions \
+  --publisher paloaltonetworks \
+  --offer vmseries-flex \
+  --sku byol \
+  --location eastus \
+  --query 'sort_by(@, &name) | reverse(@) | [].[name]' \
+  --output table
+```
+
+**Show full detail for a specific version (includes release date):**
+
+```bash
+az vm image show \
+  --publisher paloaltonetworks \
+  --offer vmseries-flex \
+  --sku byol \
+  --version 11.1.2 \
+  --location eastus
+```
+
+**Check what versions are available in a different region:**
+
+```bash
+az vm image list-versions \
+  --publisher paloaltonetworks \
+  --offer vmseries-flex \
+  --sku byol \
+  --location westeurope \
+  --query 'sort_by(@, &name) | reverse(@) | [0:5].[name]' \
+  --output table
+```
+
+**Accept Marketplace terms (one-time per subscription per SKU):**
+
+```bash
+az vm image terms accept \
+  --publisher paloaltonetworks \
+  --offer vmseries-flex \
+  --plan byol
+```
+
+---
+
+## Azure CLI: Regional Image Distribution
+
+Azure Managed Images are region-specific. The recommended production approach for multi-region distribution is **Azure Compute Gallery**, which handles replication automatically.
+
+### Option A — Azure Compute Gallery (recommended)
+
+```bash
+# 1. Create a gallery (one-time)
+az sig create \
+  --resource-group my-rg \
+  --gallery-name VMSeriesGallery \
+  --location eastus
+
+# 2. Create an image definition (one-time per license type)
+az sig image-definition create \
+  --resource-group my-rg \
+  --gallery-name VMSeriesGallery \
+  --gallery-image-definition vm-series-byol \
+  --publisher PaloAltoNetworks \
+  --offer VM-Series \
+  --sku byol \
+  --os-type Linux \
+  --location eastus
+
+# 3. Add a version from a Managed Image — specify all target regions here
+az sig image-version create \
+  --resource-group my-rg \
+  --gallery-name VMSeriesGallery \
+  --gallery-image-definition vm-series-byol \
+  --gallery-image-version 11.1.2 \
+  --managed-image /subscriptions/SUB/resourceGroups/my-rg/providers/Microsoft.Compute/images/my-golden-image \
+  --target-regions eastus westus2 westeurope northeurope \
+  --replica-count 1
+```
+
+The gallery version ID can then be used as `--custom-image-id` in `azure_create_infra.py`.
+
+**Check replication status:**
+
+```bash
+az sig image-version show \
+  --resource-group my-rg \
+  --gallery-name VMSeriesGallery \
+  --gallery-image-definition vm-series-byol \
+  --gallery-image-version 11.1.2 \
+  --query 'replicationStatus'
+```
+
+### Option B — az image copy extension (simpler, no gallery)
+
+```bash
+# Install extension once
+az extension add --name image-copy-extension
+
+# Copy Managed Image to additional regions
+az image copy \
+  --source-resource-group my-rg \
+  --source-object-name my-golden-image \
+  --target-location westus2 westeurope \
+  --target-resource-group my-rg \
+  --cleanup
+```
+
+This creates a separate Managed Image in each target region. Suitable for small-scale distribution; Compute Gallery is preferred for more than 2–3 regions.
+
+---
+
 ## Full Argument Reference
 
 ```
