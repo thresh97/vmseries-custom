@@ -39,6 +39,20 @@ These tools automate that full lifecycle — from first deploy through upgrade, 
 
 ---
 
+Device Certificate Requirement
+PAN-OS content and software upgrades require a **Device Certificate**. Without one, upgrade API calls fail — which means the `create-custom-ami` / `create-custom-image` workflow cannot complete.
+
+**Why `--pin-id` / `--pin-value` are required, not optional:**
+The only automated path to a Device Certificate is via bootstrap registration PIN. When `--pin-id` and `--pin-value` are passed, the firewall auto-enrolls a Device Certificate on first boot before any upgrade is attempted. Generate a Registration PIN in the [Customer Support Portal](https://support.paloaltonetworks.com) under Assets → Device Certificates.
+
+Without PIN bootstrap, the only alternative is a manual OTP procedure: boot the firewall, retrieve the serial number, generate a one-time password in the CSP, then install the Device Certificate by SSH or API before upgrades can run. The serial number is not known until after the firewall boots and registers, so it cannot be scripted end-to-end without PIN. See [Install a Device Certificate on the VM-Series Firewall](https://docs.paloaltonetworks.com/vm-series/11-1/vm-series-deployment/license-the-vm-series-firewall/vm-series-models/install-a-device-certificate-on-the-vm-series-firewall) for the manual procedure.
+
+**`private-data-reset` before image capture wipes the Device Certificate** — this is correct and expected. Each deployment from the golden image re-enrolls automatically via bootstrap PIN params at first boot.
+
+[PAN Advisory: PAN-OS Certificate Expirations and Device Certificate Management](https://live.paloaltonetworks.com/t5/customer-advisories/update-to-additional-pan-os-certificate-expirations-and-new/ta-p/572158)
+
+---
+
 How It Works
 
 ### Golden image workflow (both clouds)
