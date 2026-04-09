@@ -1442,8 +1442,8 @@ def handle_create_custom_image(args: argparse.Namespace) -> None:
         save_state(prefix, state)
         LOGGER.info("✅ Auto-registration complete. Firewall is licensed.")
 
-        # Step 3: Set admin password
-        LOGGER.info("=== Step 3: Setting admin password ===")
+        # Step 3: Set panadmin password
+        LOGGER.info("=== Step 3: Setting panadmin password ===")
         new_password = generate_password()
         LOGGER.info(f"Generated new password for admin: {new_password}")
         set_firewall_password(public_ip, ssh_priv_key, new_password)
@@ -1656,9 +1656,9 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
             actions_done.add("auto-registration")
             LOGGER.info("✅ Auto-registration complete.")
 
-        # Step 3: Set admin password
+        # Step 3: Set panadmin password
         if not new_password:
-            LOGGER.info("=== Resuming Step 3: Setting admin password ===")
+            LOGGER.info("=== Resuming Step 3: Setting panadmin password ===")
             new_password = generate_password()
             set_firewall_password(public_ip, ssh_priv_key, new_password)
             state["admin_password"] = new_password
