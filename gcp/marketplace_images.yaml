@@ -1,0 +1,9 @@
+byol:
+  project: paloaltonetworks-public
+  family: vmseries-flex-byol-1014
+bundle1:
+  project: paloaltonetworks-public
+  family: vmseries-flex-bundle1-1014
+bundle2:
+  project: paloaltonetworks-public
+  family: vmseries-flex-bundle2-1014

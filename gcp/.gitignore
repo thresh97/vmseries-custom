@@ -1,0 +1,8 @@
+*-state.json
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+.env

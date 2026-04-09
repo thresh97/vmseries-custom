@@ -1,0 +1,6 @@
+google-cloud-compute>=1.14.0
+google-auth>=2.0.0
+paramiko
+pan-os-python==1.12.3
+pyyaml
+setuptools>=75.1.0
