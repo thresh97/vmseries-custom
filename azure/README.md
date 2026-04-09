@@ -19,20 +19,6 @@ This project is not affiliated with, endorsed by, or supported by Palo Alto Netw
 
 ---
 
-Why This Tool? — The Azure Marketplace Lag
-PAN does not publish every PAN-OS version to the Azure Marketplace immediately after release. There is a lag from PAN-OS release to Marketplace availability. This means you often cannot deploy a specific version directly from the Marketplace.
-
-**The documented solution** is:
-1. Deploy the latest available Marketplace image (e.g., `11.1.2` if `11.1.6` isn't yet published).
-2. After boot, upgrade via the PAN-OS API to the desired target version (`11.1.6`).
-3. Perform a private-data-reset to generalize the firewall.
-4. Deallocate and generalize the VM via the Azure SDK.
-5. Capture as a Managed Image.
-
-This is why `create-custom-image` is the **primary workflow** for building golden images in Azure, whereas on AWS you can often deploy the exact version directly.
-
----
-
 Features
 - **create**: Deploys a Resource Group, VNet, public/private subnets, NSG, Public IPs, NICs, and a 3-NIC VM-Series VM. Optionally bootstraps via `custom_data`.
 - **destroy**: Deletes the Resource Group, which cascade-deletes all resources inside it. No ordered teardown required.
