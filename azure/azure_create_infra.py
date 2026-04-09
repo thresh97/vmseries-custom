@@ -615,11 +615,23 @@ def get_marketplace_image_version(
         )
 
     def _vkey(v):
+        # Azure encodes PAN-OS 12.1.3 patch 1 as "12.1.301".
+        # Sort by (major, minor, base_patch, sub_patch) so that 12.1.5 (→ 5,0)
+        # ranks above 12.1.302 (→ 3,2).
+        parts = re.split(r'[.\-]', v)
         result = []
-        for part in re.split(r'[.\-]', v):
+        for i, part in enumerate(parts):
             try:
-                result.append(int(part))
+                n = int(part)
             except ValueError:
+                result.append(0)
+                result.append(0)
+                continue
+            if i == 2 and n >= 100:
+                result.append(n // 100)
+                result.append(n % 100)
+            else:
+                result.append(n)
                 result.append(0)
         return result
 
@@ -1611,7 +1623,7 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
                 state=state,
                 license_type=license_type,
                 version=base_version,
-                vm_size=original_args.get("vm_size", "Standard_D8_v5"),
+                vm_size=original_args.get("vm_size", "Standard_D8s_v5"),
                 vnet_cidr=original_args.get("vnet_cidr", "10.0.0.0/16"),
                 public_subnet_cidr=original_args.get("public_subnet_cidr", "10.0.1.0/24"),
                 private_subnet_cidr=original_args.get("private_subnet_cidr", "10.0.2.0/24"),
@@ -1793,7 +1805,7 @@ def main() -> None:
     parser_create.add_argument("--auth-code", required=False, help="BYOL auth code for basic bootstrapping (requires --pin-id and --pin-value).")
     parser_create.add_argument("--pin-id", required=False, help="VM-Series auto-registration PIN ID for basic bootstrapping.")
     parser_create.add_argument("--pin-value", required=False, help="VM-Series auto-registration PIN value for basic bootstrapping.")
-    parser_create.add_argument("--vm-size", default="Standard_D8_v5", help="Azure VM size (default: Standard_D8_v5).")
+    parser_create.add_argument("--vm-size", default="Standard_D8s_v5", help="Azure VM size (default: Standard_D8s_v5).")
     parser_create.add_argument("--vnet-cidr", default="10.0.0.0/16", help="CIDR block for the VNet (default: 10.0.0.0/16).")
     parser_create.add_argument("--public-subnet-cidr", default="10.0.1.0/24", help="CIDR for the public subnet (default: 10.0.1.0/24).")
     parser_create.add_argument("--private-subnet-cidr", default="10.0.2.0/24", help="CIDR for the private subnet (default: 10.0.2.0/24).")
@@ -1843,7 +1855,7 @@ def main() -> None:
     parser_cci.add_argument("--version", required=False, help="Optional: Base Marketplace image version. Partial X.Y auto-derived from --target-upgrade-version if omitted.")
     parser_cci.add_argument("--ssh-key-file", required=False, default="~/.ssh/id_rsa.pub", metavar="PATH", help="Path to SSH public or private key file (default: ~/.ssh/id_rsa.pub).")
     parser_cci.add_argument("--allowed-ips", required=True, type=lambda s: [item.strip() for item in s.split(',')], help="Comma-separated IPv4 CIDR blocks for SSH/HTTPS access.")
-    parser_cci.add_argument("--vm-size", default="Standard_D8_v5", help="Azure VM size (default: Standard_D8_v5).")
+    parser_cci.add_argument("--vm-size", default="Standard_D8s_v5", help="Azure VM size (default: Standard_D8s_v5).")
     parser_cci.add_argument("--vnet-cidr", default="10.0.0.0/16", help="CIDR block for the VNet (default: 10.0.0.0/16).")
     parser_cci.add_argument("--public-subnet-cidr", default="10.0.1.0/24", help="CIDR for the public subnet (default: 10.0.1.0/24).")
     parser_cci.add_argument("--private-subnet-cidr", default="10.0.2.0/24", help="CIDR for the private subnet (default: 10.0.2.0/24).")
