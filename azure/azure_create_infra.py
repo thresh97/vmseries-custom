@@ -1563,8 +1563,8 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
         public_ip = state.get("public_ip")
         original_args = state.get("invocation_args", {})
 
-        if not vm_id or not region or not prefix or not resource_group:
-            raise RuntimeError("State file is missing vm_id, region, resource_group, or deployment_prefix. Cannot restart.")
+        if not region or not prefix or not resource_group:
+            raise RuntimeError("State file is missing region, resource_group, or deployment_prefix. Cannot restart.")
 
         credential = DefaultAzureCredential()
         subscription_id = state.get("subscription_id") or get_subscription_id(credential, None)
@@ -1572,7 +1572,7 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
         ssh_key_file = args.ssh_key_file or original_args.get("ssh_key_file")
         if not ssh_key_file:
             raise ValueError("SSH key file not found in state or CLI args. Use --ssh-key-file.")
-        _, ssh_priv_key = get_and_validate_ssh_keys(ssh_key_file)
+        ssh_pub_key, ssh_priv_key = get_and_validate_ssh_keys(ssh_key_file)
 
         target_upgrade_version = original_args.get("target_upgrade_version")
         upgrade_antivirus = original_args.get("upgrade_antivirus", False)
@@ -1589,6 +1589,44 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
             image_name = last.get("image_name")
 
         LOGGER.info(f"Resuming create-custom-image for prefix '{prefix}'. Completed steps: {actions_done or 'none'}")
+
+        # Step 1 (recovery): VM creation may not have completed — create_infrastructure is idempotent
+        if not vm_id:
+            LOGGER.info("=== Step 1 (recovery): VM not found in state — retrying VM creation ===")
+            name_tag = original_args.get("name_tag", "")
+            full_name_tag = f"{prefix}-{name_tag}"
+            base_version = original_args.get("version")
+            if not base_version and target_upgrade_version:
+                parts = target_upgrade_version.split(".")
+                if len(parts) == 2 or (len(parts) == 3 and parts[2].lower() == "latest"):
+                    base_version = f"{parts[0]}.{parts[1]}"
+            bootstrap_custom_data = build_bootstrap_custom_data(
+                original_args.get("auth_code"),
+                original_args.get("pin_id"),
+                original_args.get("pin_value"),
+            )
+            state = create_infrastructure(
+                credential=credential,
+                subscription_id=subscription_id,
+                region=region,
+                name_tag=full_name_tag,
+                prefix=prefix,
+                state=state,
+                license_type=license_type,
+                version=base_version,
+                vm_size=original_args.get("vm_size", "Standard_D8_v5"),
+                vnet_cidr=original_args.get("vnet_cidr", "10.0.0.0/16"),
+                public_subnet_cidr=original_args.get("public_subnet_cidr", "10.0.1.0/24"),
+                private_subnet_cidr=original_args.get("private_subnet_cidr", "10.0.2.0/24"),
+                allowed_ips=original_args.get("allowed_ips", []),
+                ssh_pub_key_path=ssh_pub_key,
+                custom_data=bootstrap_custom_data,
+            )
+            monitor_chassis_ready(state["public_ip"], ssh_priv_key)
+            vm_id = state["vm_id"]
+            vm_name = state["vm_name"]
+            public_ip = state["public_ip"]
+            LOGGER.info("✅ VM created and chassis is ready.")
 
         # Wait for SSH if private-data-reset not yet done
         if "private-data-reset" not in actions_done and public_ip:
