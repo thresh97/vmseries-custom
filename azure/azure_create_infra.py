@@ -108,8 +108,10 @@ logging.basicConfig(
 )
 LOGGER = logging.getLogger(__name__)
 
-# Reduce paramiko logging noise unless debugging
+# Suppress noisy SDK loggers unless debugging
 logging.getLogger("paramiko").setLevel(logging.WARNING)
+logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+logging.getLogger("azure.identity").setLevel(logging.WARNING)
 
 
 # --- State and Config Management ---
