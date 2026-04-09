@@ -838,7 +838,7 @@ def create_infrastructure(
             rg_name, nic_untrust_name,
             {
                 "location": region,
-                "enable_ip_forwarding": True,
+                "enable_accelerated_networking": True,
                 "ip_configurations": [{
                     "name": "ipconfig-untrust",
                     "subnet": {"id": state["public_subnet_id"]},
@@ -862,6 +862,7 @@ def create_infrastructure(
             {
                 "location": region,
                 "enable_ip_forwarding": True,
+                "enable_accelerated_networking": True,
                 "ip_configurations": [{
                     "name": "ipconfig-trust",
                     "subnet": {"id": state["private_subnet_id"]},

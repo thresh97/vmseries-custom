@@ -529,7 +529,6 @@ def create_infrastructure(
             PrivateIpAddress=eth1_private_ip, TagSpecifications=[{"ResourceType": "network-interface", "Tags": untrust_eni_tags}])
         untrust_eni.attach(InstanceId=instance.id, DeviceIndex=1)
         ec2_client.associate_address(AllocationId=state["eip_alloc_id"], NetworkInterfaceId=untrust_eni.id)
-        ec2_client.modify_network_interface_attribute(NetworkInterfaceId=untrust_eni.id, SourceDestCheck={'Value': False})
         state["eth1_eni_id"] = untrust_eni.id
         save_state(prefix, state)
         LOGGER.info("✅ Created, attached, and configured eth1 (untrust) with EIP.")
