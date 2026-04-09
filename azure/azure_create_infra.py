@@ -516,8 +516,8 @@ def set_firewall_password(public_ip: str, ssh_priv_key_path: Path, new_password:
         ssh.connect()
         ssh.send_command("configure", prompt_chars=['#'])
 
-        LOGGER.info("Setting admin password...")
-        ssh.shell.send("set mgt-config users admin password\n")
+        LOGGER.info("Setting panadmin password...")
+        ssh.shell.send("set mgt-config users panadmin password\n")
 
         ssh.wait_for_prompt(prompt_chars=['Enter password   : '])
         ssh.shell.send(new_password + '\n')
