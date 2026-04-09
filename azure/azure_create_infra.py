@@ -1109,7 +1109,6 @@ def handle_create(args: argparse.Namespace) -> None:
         sys.exit(1)
 
     LOGGER.info(f"Using deployment prefix: {prefix}")
-    full_name_tag = f"{prefix}-{args.name_tag}"
 
     credential = DefaultAzureCredential()
     subscription_id = get_subscription_id(credential, args.subscription_id)
@@ -1153,7 +1152,7 @@ def handle_create(args: argparse.Namespace) -> None:
             credential=credential,
             subscription_id=subscription_id,
             region=args.region,
-            name_tag=full_name_tag,
+            name_tag=args.name_tag,
             prefix=prefix,
             state=state,
             license_type=args.license_type or "byol",
@@ -1168,7 +1167,7 @@ def handle_create(args: argparse.Namespace) -> None:
             custom_image_id=args.custom_image_id,
         )
         monitor_chassis_ready(final_state["public_ip"], ssh_priv_key)
-        LOGGER.info(f"🎉 Infrastructure '{full_name_tag}' deployed successfully!")
+        LOGGER.info(f"🎉 Infrastructure '{args.name_tag}' deployed successfully!")
         LOGGER.info(f"Management IP: {final_state['public_ip']}")
         LOGGER.info(f"To destroy: python azure_create_infra.py destroy --deployment-file {prefix}-state.json")
     except (AzureError, RuntimeError, ValueError) as e:
@@ -1366,7 +1365,6 @@ def handle_create_custom_image(args: argparse.Namespace) -> None:
     ssh_pub_key, ssh_priv_key = get_and_validate_ssh_keys(args.ssh_key_file)
 
     prefix = generate_prefix()
-    full_name_tag = f"{prefix}-{args.name_tag}"
 
     credential = DefaultAzureCredential()
     subscription_id = get_subscription_id(credential, args.subscription_id)
@@ -1399,7 +1397,7 @@ def handle_create_custom_image(args: argparse.Namespace) -> None:
             credential=credential,
             subscription_id=subscription_id,
             region=args.region,
-            name_tag=full_name_tag,
+            name_tag=args.name_tag,
             prefix=prefix,
             state=state,
             license_type=args.license_type,
@@ -1594,7 +1592,6 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
         if not vm_id:
             LOGGER.info("=== Step 1 (recovery): VM not found in state — retrying VM creation ===")
             name_tag = original_args.get("name_tag", "")
-            full_name_tag = f"{prefix}-{name_tag}"
             base_version = original_args.get("version")
             if not base_version and target_upgrade_version:
                 parts = target_upgrade_version.split(".")
@@ -1609,7 +1606,7 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
                 credential=credential,
                 subscription_id=subscription_id,
                 region=region,
-                name_tag=full_name_tag,
+                name_tag=name_tag,
                 prefix=prefix,
                 state=state,
                 license_type=license_type,
