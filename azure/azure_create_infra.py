@@ -196,7 +196,7 @@ def get_subscription_id(credential, override: Optional[str] = None) -> str:
 
 class FirewallSSHClient:
     """A wrapper for Paramiko to handle interactive shell sessions with a firewall."""
-    def __init__(self, public_ip: str, ssh_priv_key_path: Path, user: str = "admin"):
+    def __init__(self, public_ip: str, ssh_priv_key_path: Path, user: str = "panadmin"):
         self.public_ip = public_ip
         self.ssh_priv_key_path = ssh_priv_key_path
         self.user = user
@@ -283,7 +283,7 @@ class FirewallSSHClient:
 def upgrade_content_api(public_ip: str, password: str) -> Optional[str]:
     """Connects to a firewall via API, downloads and installs the latest content."""
     try:
-        fw = firewall.Firewall(public_ip, "admin", password)
+        fw = firewall.Firewall(public_ip, "panadmin", password)
     except Exception as e:
         raise RuntimeError(f"Failed to connect to firewall API: {e}")
 
@@ -312,7 +312,7 @@ def resolve_panos_version(public_ip: str, password: str, version_spec: str) -> s
         raise ValueError(f"Invalid version spec '{version_spec}'. Use 'X.Y', 'X.Y.latest', or 'X.Y.Z'.")
 
     LOGGER.info(f"Resolving '{version_spec}' → querying available PAN-OS versions...")
-    fw = firewall.Firewall(public_ip, "admin", password)
+    fw = firewall.Firewall(public_ip, "panadmin", password)
     fw.software.check()
     prefix = f"{major}.{minor}."
     matching = [v for v in fw.software.versions.keys() if v.startswith(prefix)]
@@ -335,7 +335,7 @@ def resolve_panos_version(public_ip: str, password: str, version_spec: str) -> s
 def upgrade_panos_api(public_ip: str, password: str, target_version: str) -> Optional[str]:
     """Connects to a firewall via API and upgrades the PAN-OS software."""
     try:
-        fw = firewall.Firewall(public_ip, "admin", password)
+        fw = firewall.Firewall(public_ip, "panadmin", password)
     except Exception as e:
         raise RuntimeError(f"Failed to connect to firewall API: {e}")
 
@@ -363,7 +363,7 @@ def upgrade_panos_api(public_ip: str, password: str, target_version: str) -> Opt
 def upgrade_antivirus_api(public_ip: str, password: str) -> Optional[str]:
     """Connects to a firewall via API, downloads and installs the latest antivirus update."""
     try:
-        fw = firewall.Firewall(public_ip, "admin", password)
+        fw = firewall.Firewall(public_ip, "panadmin", password)
     except Exception as e:
         raise RuntimeError(f"Failed to connect to firewall API: {e}")
 
@@ -924,12 +924,12 @@ def create_infrastructure(
 
         os_profile: Dict[str, Any] = {
             "computer_name": vm_name[:15],  # Azure computer name limit
-            "admin_username": "admin",
+            "admin_username": "panadmin",
             "linux_configuration": {
                 "disable_password_authentication": True,
                 "ssh": {
                     "public_keys": [{
-                        "path": "/home/admin/.ssh/authorized_keys",
+                        "path": "/home/panadmin/.ssh/authorized_keys",
                         "key_data": ssh_pub_key_data,
                     }]
                 },
