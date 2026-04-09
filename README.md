@@ -94,7 +94,6 @@ Destroy temporary infrastructure
 |---|---|---|
 | Golden image | AMI | Managed Image |
 | Capture process | `create_image()` (instance can be running or stopped) | Stop → deallocate → generalize → `images.create()` |
-| Marketplace lag | Less common; most versions published promptly | More common; `create-custom-ami` often required |
 | Destroy | Ordered teardown of each resource | Delete Resource Group (cascade) |
 | Auth | `aws configure` / IAM | `az login` / DefaultAzureCredential |
 
