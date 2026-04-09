@@ -1,0 +1,15 @@
+# Deployment state files — contain passwords, IPs, and AWS resource IDs
+*-state.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

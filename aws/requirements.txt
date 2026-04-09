@@ -1,0 +1,6 @@
+boto3
+paramiko
+setuptools>=75.1.0
+pan-os-python==1.12.3
+ipaddress
+pyyaml
