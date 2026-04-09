@@ -4,7 +4,7 @@ Python CLI tools for deploying, upgrading, and capturing golden images of Palo A
 ---
 
 License
-MIT License — see [aws/LICENSE](aws/LICENSE) for full text.
+MIT License — see [LICENSE](LICENSE) for full text.
 
 This software is provided "as is", without warranty of any kind. In no event shall the authors or copyright holders be liable for any claim, damages, or other liability arising from use of this software.
 
