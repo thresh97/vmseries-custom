@@ -2,6 +2,7 @@ azure-identity
 azure-mgmt-compute
 azure-mgmt-network
 azure-mgmt-resource
+azure-mgmt-subscription
 paramiko
 pan-os-python==1.12.3
 setuptools>=75.1.0

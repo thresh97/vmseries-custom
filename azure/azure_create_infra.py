@@ -90,7 +90,7 @@ try:
     from azure.mgmt.compute import ComputeManagementClient
     from azure.mgmt.network import NetworkManagementClient
     from azure.mgmt.resource import ResourceManagementClient
-    from azure.mgmt.resource.subscriptions import SubscriptionClient
+    from azure.mgmt.subscription import SubscriptionClient
     from azure.core.exceptions import AzureError, ResourceNotFoundError
 except ImportError as e:
     LOGGER = logging.getLogger(__name__)

@@ -47,7 +47,7 @@ import yaml
 try:
     from azure.identity import DefaultAzureCredential
     from azure.mgmt.compute import ComputeManagementClient
-    from azure.mgmt.resource.subscriptions import SubscriptionClient
+    from azure.mgmt.subscription import SubscriptionClient
     from azure.core.exceptions import AzureError
 except ImportError as e:
     print(f"Azure SDK libraries not found: {e}", file=sys.stderr)
