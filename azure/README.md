@@ -113,7 +113,7 @@ python azure_create_infra.py create \
 | `--allowed-ips` | Yes | — | Comma-separated CIDRs for SSH/HTTPS access |
 | `--license-type` | No | `byol` | License type (see `marketplace_skus.yaml`) |
 | `--custom-image-id` | No | — | ARM resource ID of a custom Managed Image; bypasses Marketplace |
-| `--version` | No | — | Marketplace image version (e.g., `11.0.3`). Partial `X.Y` selects latest patch |
+| `--version` | No | — | Marketplace image version (e.g., `12.1.5`). Partial `X.Y` selects latest patch |
 | `--ssh-key-file` | No | `~/.ssh/id_rsa.pub` | Path to SSH public or private key file |
 | `--vm-size` | No | `Standard_D3_v2` | Azure VM size |
 | `--vnet-cidr` | No | `10.0.0.0/16` | VNet CIDR block |
@@ -188,7 +188,7 @@ Upgrades PAN-OS software to a specified version.
 ```
 python azure_create_infra.py upgrade-panos \
     --deployment-file abc123-state.json \
-    --target-version "11.1.2"
+    --target-version "12.1.5"
 ```
 
 Accepts exact (`11.1.2`), partial (`11.1`), or explicit-latest (`11.1.latest`) version specs.
@@ -223,7 +223,7 @@ python azure_create_infra.py create-custom-image \
     --auth-code "YOUR-AUTH-CODE" \
     --pin-id "YOUR-PIN-ID" \
     --pin-value "YOUR-PIN-VALUE" \
-    --target-upgrade-version "11.1"
+    --target-upgrade-version "12.1"
 ```
 
 | Argument | Required | Default | Description |
@@ -234,7 +234,7 @@ python azure_create_infra.py create-custom-image \
 | `--auth-code` | Yes | — | BYOL auth code for bootstrap auto-registration |
 | `--pin-id` | Yes | — | VM-Series auto-registration PIN ID |
 | `--pin-value` | Yes | — | VM-Series auto-registration PIN value |
-| `--target-upgrade-version` | Yes | — | Target PAN-OS version — exact (`11.1.2`), partial (`11.1`), or `11.1.latest` |
+| `--target-upgrade-version` | Yes | — | Target PAN-OS version — exact (`12.1.5`), partial (`12.1`), or `12.1.latest` |
 | `--license-type` | No | `byol` | License type |
 | `--version` | No | — | Base Marketplace image version. If omitted and `--target-upgrade-version` is partial, same `X.Y` is used |
 | `--ssh-key-file` | No | `~/.ssh/id_rsa.pub` | Path to SSH public or private key file |
@@ -269,21 +269,21 @@ python azure_create_infra.py create-custom-image \
 
 | Form | Example | Behavior |
 |---|---|---|
-| Exact | `11.1.2` | Upgrades to exactly `11.1.2` |
-| Partial | `11.1` | Resolves to the latest `11.1.x` available on the update server at run time |
-| Explicit latest | `11.1.latest` | Same as partial |
+| Exact | `12.1.5` | Upgrades to exactly `12.1.5` |
+| Partial | `12.1` | Resolves to the latest `12.1.x` available on the update server at run time |
+| Explicit latest | `12.1.latest` | Same as partial |
 
 When a partial spec is used and `--version` is omitted, the base Marketplace image is also selected from the same `X.Y` family (latest available in the Marketplace). This means a single argument drives both the starting image and the upgrade target:
 
 ```
-# Deploy latest 11.1.x Marketplace image, upgrade to latest 11.1.x patch
-python azure_create_infra.py create-custom-image ... --target-upgrade-version 11.1
+# Deploy latest 12.1.x Marketplace image, upgrade to latest 12.1.x patch
+python azure_create_infra.py create-custom-image ... --target-upgrade-version 12.1
 
-# Deploy 11.1.2 specifically, upgrade to latest 11.1.x patch
-python azure_create_infra.py create-custom-image ... --target-upgrade-version 11.1 --version 11.1.2
+# Deploy 12.1.5 specifically, upgrade to latest 12.1.x patch
+python azure_create_infra.py create-custom-image ... --target-upgrade-version 12.1 --version 12.1.5
 
-# Deploy latest 11.1.x Marketplace image, upgrade to exactly 11.1.6
-python azure_create_infra.py create-custom-image ... --target-upgrade-version 11.1.6
+# Deploy latest 12.1.x Marketplace image, upgrade to exactly 12.1.5
+python azure_create_infra.py create-custom-image ... --target-upgrade-version 12.1.5
 ```
 
 ---
@@ -356,35 +356,39 @@ az vm image list-skus \
 **List all versions for a SKU, sorted newest first:**
 
 ```bash
-az vm image list-versions \
+az vm image list \
   --publisher paloaltonetworks \
   --offer vmseries-flex \
   --sku byol \
   --location eastus \
-  --query 'sort_by(@, &name) | reverse(@) | [].[name]' \
+  --all \
+  --query 'sort_by(@, &version) | reverse(@) | [].version' \
   --output table
 ```
 
-**Show full detail for a specific version (includes release date):**
+**Show full detail for a specific version (includes deprecation status):**
 
 ```bash
 az vm image show \
   --publisher paloaltonetworks \
   --offer vmseries-flex \
   --sku byol \
-  --version 11.1.2 \
+  --version 12.1.5 \
   --location eastus
 ```
+
+Check `imageDeprecationStatus.imageState` in the output — deprecated versions will return `ImageVersionDeprecated` and cannot be deployed.
 
 **Check what versions are available in a different region:**
 
 ```bash
-az vm image list-versions \
+az vm image list \
   --publisher paloaltonetworks \
   --offer vmseries-flex \
   --sku byol \
   --location westeurope \
-  --query 'sort_by(@, &name) | reverse(@) | [0:5].[name]' \
+  --all \
+  --query 'sort_by(@, &version) | reverse(@) | [0:5].version' \
   --output table
 ```
 
@@ -428,7 +432,7 @@ az sig image-version create \
   --resource-group my-rg \
   --gallery-name VMSeriesGallery \
   --gallery-image-definition vm-series-byol \
-  --gallery-image-version 11.1.2 \
+  --gallery-image-version 12.1.5 \
   --managed-image /subscriptions/SUB/resourceGroups/my-rg/providers/Microsoft.Compute/images/my-golden-image \
   --target-regions eastus westus2 westeurope northeurope \
   --replica-count 1
@@ -443,7 +447,7 @@ az sig image-version show \
   --resource-group my-rg \
   --gallery-name VMSeriesGallery \
   --gallery-image-definition vm-series-byol \
-  --gallery-image-version 11.1.2 \
+  --gallery-image-version 12.1.5 \
   --query 'replicationStatus'
 ```
 
