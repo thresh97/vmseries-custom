@@ -115,7 +115,7 @@ python azure_create_infra.py create \
 | `--custom-image-id` | No | — | ARM resource ID of a custom Managed Image; bypasses Marketplace |
 | `--version` | No | — | Marketplace image version (e.g., `12.1.5`). Partial `X.Y` selects latest patch |
 | `--ssh-key-file` | No | `~/.ssh/id_rsa.pub` | Path to SSH public or private key file |
-| `--vm-size` | No | `Standard_D3_v2` | Azure VM size |
+| `--vm-size` | No | `Standard_D8_v5` | Azure VM size |
 | `--vnet-cidr` | No | `10.0.0.0/16` | VNet CIDR block |
 | `--public-subnet-cidr` | No | `10.0.1.0/24` | Public subnet CIDR |
 | `--private-subnet-cidr` | No | `10.0.2.0/24` | Private subnet CIDR |
@@ -238,7 +238,7 @@ python azure_create_infra.py create-custom-image \
 | `--license-type` | No | `byol` | License type |
 | `--version` | No | — | Base Marketplace image version. If omitted and `--target-upgrade-version` is partial, same `X.Y` is used |
 | `--ssh-key-file` | No | `~/.ssh/id_rsa.pub` | Path to SSH public or private key file |
-| `--vm-size` | No | `Standard_D3_v2` | Azure VM size |
+| `--vm-size` | No | `Standard_D8_v5` | Azure VM size |
 | `--vnet-cidr` | No | `10.0.0.0/16` | VNet CIDR block |
 | `--public-subnet-cidr` | No | `10.0.1.0/24` | Public subnet CIDR |
 | `--private-subnet-cidr` | No | `10.0.2.0/24` | Private subnet CIDR |
