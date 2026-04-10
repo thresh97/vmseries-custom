@@ -1031,9 +1031,15 @@ def create_managed_image(
     vm_id: str,
     region: str,
     image_name: str,
+    image_resource_group: str,
 ) -> str:
-    """Deallocates, generalizes, and creates a Managed Image from a stopped VM."""
+    """Deallocates, generalizes, and creates a Managed Image from a stopped VM.
+
+    The image is placed in image_resource_group (a separate, persistent RG) so
+    that destroying the temporary deployment RG does not delete the image.
+    """
     compute_client = ComputeManagementClient(credential, subscription_id)
+    resource_client = ResourceManagementClient(credential, subscription_id)
 
     LOGGER.info(f"Deallocating VM '{vm_name}'...")
     compute_client.virtual_machines.begin_deallocate(resource_group, vm_name).result()
@@ -1043,9 +1049,17 @@ def create_managed_image(
     compute_client.virtual_machines.generalize(resource_group, vm_name)
     LOGGER.info(f"✅ VM '{vm_name}' generalized.")
 
-    LOGGER.info(f"Creating Managed Image '{image_name}' from VM...")
+    # Use existing image RG or create it if it doesn't exist yet
+    if resource_client.resource_groups.check_existence(image_resource_group):
+        LOGGER.info(f"Using existing image Resource Group '{image_resource_group}'.")
+    else:
+        LOGGER.info(f"Creating image Resource Group '{image_resource_group}'...")
+        resource_client.resource_groups.create_or_update(image_resource_group, {"location": region})
+        LOGGER.info(f"✅ Image Resource Group created: {image_resource_group}")
+
+    LOGGER.info(f"Creating Managed Image '{image_name}' in '{image_resource_group}'...")
     image = compute_client.images.begin_create_or_update(
-        resource_group,
+        image_resource_group,
         image_name,
         {
             "location": region,
@@ -1514,6 +1528,9 @@ def handle_create_custom_image(args: argparse.Namespace) -> None:
 
         # Step 9: Deallocate, generalize, create Managed Image
         LOGGER.info("=== Step 9: Creating Managed Image ===")
+        image_rg = args.image_resource_group or f"{args.name_tag}-images-rg"
+        state["image_resource_group"] = image_rg
+        save_state(prefix, state)
         image_name = f"custom-{args.license_type}-{target_upgrade_version}-{time.strftime('%Y%m%d%H%M%S')}"
         image_id = create_managed_image(
             credential=credential,
@@ -1523,6 +1540,7 @@ def handle_create_custom_image(args: argparse.Namespace) -> None:
             vm_id=state["vm_id"],
             region=region,
             image_name=image_name,
+            image_resource_group=image_rg,
         )
         state.setdefault('created_images', []).append({
             'image_id': image_id,
@@ -1731,6 +1749,10 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
         # Step 9: Create Managed Image
         if not state.get("created_images"):
             LOGGER.info("=== Resuming Step 9: Creating Managed Image ===")
+            name_tag = original_args.get("name_tag", "")
+            image_rg = state.get("image_resource_group") or original_args.get("image_resource_group") or f"{name_tag}-images-rg"
+            state["image_resource_group"] = image_rg
+            save_state(prefix, state)
             image_name = f"custom-{license_type}-{target_upgrade_version}-{time.strftime('%Y%m%d%H%M%S')}"
             image_id = create_managed_image(
                 credential=credential,
@@ -1740,6 +1762,7 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
                 vm_id=vm_id,
                 region=region,
                 image_name=image_name,
+                image_resource_group=image_rg,
             )
             state.setdefault("created_images", []).append({
                 "image_id": image_id,
@@ -1865,6 +1888,7 @@ def main() -> None:
     parser_cci.add_argument("--target-upgrade-version", required=True, help="Target PAN-OS version (e.g., '11.1.2', '11.1', '11.1.latest').")
     parser_cci.add_argument("--upgrade-antivirus", action="store_true", default=False, help="Also upgrade antivirus after content upgrade.")
     parser_cci.add_argument("--auto-destroy", action="store_true", default=False, help="Destroy temporary infrastructure after image creation.")
+    parser_cci.add_argument("--image-resource-group", required=False, default=None, help="Resource group for the Managed Image (default: <name-tag>-images-rg). Kept separate from the deployment RG so it survives destroy.")
     parser_cci.set_defaults(func=handle_create_custom_image)
 
     # --- Create Custom Image Restart Command ---
