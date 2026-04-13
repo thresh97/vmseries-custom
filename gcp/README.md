@@ -7,10 +7,12 @@ A Python CLI to deploy, manage, and build custom images from Palo Alto Networks 
 GCP requires each NIC on an instance to belong to a **different VPC network**. This tool creates the standard 3-NIC VM-Series topology:
 
 ```
-mgmt-vpc    (10.0.0.0/24)  — NIC0: SSH+HTTPS management, static external IP
-untrust-vpc (10.0.1.0/24)  — NIC1: untrust dataplane, static external IP
-trust-vpc   (10.0.2.0/24)  — NIC2: trust dataplane, internal only (no external IP)
+untrust-vpc (10.0.1.0/24)  — NIC0: untrust dataplane (ethernet1/1), static external IP
+mgmt-vpc    (10.0.0.0/24)  — NIC1: SSH+HTTPS management (after mgmt-interface-swap), static external IP
+trust-vpc   (10.0.2.0/24)  — NIC2: trust dataplane (ethernet1/2), internal only (no external IP)
 ```
+
+> **Note:** `mgmt-interface-swap` is enabled via bootstrap metadata. This causes PAN-OS to treat NIC1 as the management interface. SSH and HTTPS management connect to the **mgmt-vpc** IP on NIC1, not NIC0.
 
 ## Prerequisites
 

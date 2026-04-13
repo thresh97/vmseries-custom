@@ -981,19 +981,7 @@ def create_infrastructure(
                 )
             ],
             network_interfaces=[
-                # NIC0: mgmt (with external IP)
-                compute_v1.NetworkInterface(
-                    subnetwork=f"projects/{project_id}/regions/{region}/subnetworks/{mgmt_subnet_name}",
-                    access_configs=[
-                        compute_v1.AccessConfig(
-                            name="mgmt-external",
-                            type_="ONE_TO_ONE_NAT",
-                            nat_i_p=state["public_ip"],
-                            network_tier="PREMIUM",
-                        )
-                    ],
-                ),
-                # NIC1: untrust (with external IP)
+                # NIC0: untrust (dataplane, ethernet1/1 after mgmt-interface-swap)
                 compute_v1.NetworkInterface(
                     subnetwork=f"projects/{project_id}/regions/{region}/subnetworks/{untrust_subnet_name}",
                     access_configs=[
@@ -1005,7 +993,19 @@ def create_infrastructure(
                         )
                     ],
                 ),
-                # NIC2: trust (no external IP)
+                # NIC1: mgmt (management interface after mgmt-interface-swap, SSH/HTTPS here)
+                compute_v1.NetworkInterface(
+                    subnetwork=f"projects/{project_id}/regions/{region}/subnetworks/{mgmt_subnet_name}",
+                    access_configs=[
+                        compute_v1.AccessConfig(
+                            name="mgmt-external",
+                            type_="ONE_TO_ONE_NAT",
+                            nat_i_p=state["public_ip"],
+                            network_tier="PREMIUM",
+                        )
+                    ],
+                ),
+                # NIC2: trust (dataplane, ethernet1/2 after mgmt-interface-swap)
                 compute_v1.NetworkInterface(
                     subnetwork=f"projects/{project_id}/regions/{region}/subnetworks/{trust_subnet_name}",
                 ),
