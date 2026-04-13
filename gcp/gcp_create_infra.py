@@ -628,16 +628,26 @@ def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
 
     image_project = image_config["project"]
     image_family = image_config["family"]
+    # Use the family value as a name prefix (everything before the last "-segment")
+    name_prefix = image_family.rsplit("-", 1)[0]  # e.g. "vmseries-flex-byol-1215" -> "vmseries-flex-byol"
 
     images_client = compute_v1.ImagesClient()
-    LOGGER.info(f"Querying GCP image family '{image_family}' in project '{image_project}'...")
+    LOGGER.info(f"Querying images in project '{image_project}' with name prefix '{name_prefix}'...")
     try:
-        image = images_client.get_from_family(project=image_project, family=image_family)
-        LOGGER.info(f"✅ Found latest image: {image.name} (self_link: {image.self_link})")
-        return image.self_link
+        all_images = list(images_client.list(project=image_project))
+        matching = [img for img in all_images if img.name.startswith(name_prefix)]
+        if not matching:
+            raise RuntimeError(f"No images found matching prefix '{name_prefix}' in project '{image_project}'.")
+        # Sort by name descending to get the latest version
+        matching.sort(key=lambda img: img.name, reverse=True)
+        latest = matching[0]
+        LOGGER.info(f"✅ Found latest image: {latest.name} (self_link: {latest.self_link})")
+        return latest.self_link
+    except RuntimeError:
+        raise
     except Exception as e:
         raise RuntimeError(
-            f"Failed to get image from family '{image_family}' in project '{image_project}': {e}\n"
+            f"Failed to list images with prefix '{name_prefix}' in project '{image_project}': {e}\n"
             "Run 'python gcp_marketplace_explorer.py list-images' to discover available images."
         )
 
