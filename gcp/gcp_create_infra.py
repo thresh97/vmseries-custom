@@ -970,6 +970,7 @@ def create_infrastructure(
         instance_resource = compute_v1.Instance(
             name=instance_name,
             machine_type=f"zones/{zone}/machineTypes/{machine_type}",
+            can_ip_forward=True,
             disks=[
                 compute_v1.AttachedDisk(
                     boot=True,
