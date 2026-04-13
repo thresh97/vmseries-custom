@@ -117,12 +117,14 @@ def list_marketplace_images(license_type: str) -> None:
     LOGGER.info(f"Querying images in project '{image_project}' matching family '{image_family}'...")
 
     try:
-        # List all images in the public project, filtered by family prefix
+        # List all images in the public project, filtered by name prefix
+        # Exclude special-purpose variants (tf=Terraform, mp=Marketplace, mptf=both)
+        _EXCLUDED = ("-tf-", "-mp-", "-mptf-")
+        name_prefix = image_family.rsplit("-", 1)[0]
         all_images = list(images_client.list(project=image_project))
         matching = [
             img for img in all_images
-            if img.family and img.family.startswith(image_family.rsplit("-", 1)[0])
-            or img.name.startswith(image_family.rsplit("-", 1)[0])
+            if img.name.startswith(name_prefix) and not any(x in img.name for x in _EXCLUDED)
         ]
     except Exception as e:
         LOGGER.error(f"Failed to query GCP images: {e}")

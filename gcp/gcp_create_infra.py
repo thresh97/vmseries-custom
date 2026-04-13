@@ -635,11 +635,19 @@ def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
     LOGGER.info(f"Querying images in project '{image_project}' with name prefix '{name_prefix}'...")
     try:
         all_images = list(images_client.list(project=image_project))
-        matching = [img for img in all_images if img.name.startswith(name_prefix)]
+        # Exclude special-purpose variants (tf=Terraform, mp=Marketplace, mptf=both)
+        _EXCLUDED = ("-tf-", "-mp-", "-mptf-")
+        matching = [
+            img for img in all_images
+            if img.name.startswith(name_prefix) and not any(x in img.name for x in _EXCLUDED)
+        ]
         if not matching:
             raise RuntimeError(f"No images found matching prefix '{name_prefix}' in project '{image_project}'.")
-        # Sort by name descending to get the latest version
-        matching.sort(key=lambda img: img.name, reverse=True)
+        # Sort by version numbers extracted from name for correct ordering
+        def _version_key(name: str):
+            import re
+            return [int(x) if x.isdigit() else x for x in re.split(r'[.\-]', name)]
+        matching.sort(key=lambda img: _version_key(img.name), reverse=True)
         latest = matching[0]
         LOGGER.info(f"✅ Found latest image: {latest.name} (self_link: {latest.self_link})")
         return latest.self_link
