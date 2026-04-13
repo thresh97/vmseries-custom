@@ -70,15 +70,26 @@ def load_marketplace_images() -> Dict:
 MARKETPLACE_IMAGES = load_marketplace_images()
 
 
-def _version_sort_key(name: str) -> List[int]:
-    """Returns a sortable key from a GCP image name (e.g. 'vmseries-flex-byol-1014-2102')."""
-    result = []
-    for part in re.split(r'[.\-]', name):
-        try:
-            result.append(int(part))
-        except ValueError:
-            result.append(0)
-    return result
+def _version_sort_key(name: str):
+    """Returns a sortable key from a GCP image name by parsing the PAN-OS version suffix.
+
+    PAN-OS versions are encoded without separators, e.g.:
+      vmseries-flex-byol-1215  = 12.1.5
+      vmseries-flex-byol-10112 = 10.1.12
+    2-digit majors are in the range 10-20; single-digit majors are 1-9.
+    """
+    ver = name.rsplit('-', 1)[-1]  # last segment, e.g. '1215' or '1114h6'
+    m = re.match(r'^(\d+?)(?:h(\d+))?$', ver)
+    if not m:
+        return (0, 0, 0, 0)
+    numeric, hotfix = m.group(1), int(m.group(2) or 0)
+    if len(numeric) >= 4 and 10 <= int(numeric[:2]) <= 20:
+        major, rest = int(numeric[:2]), numeric[2:]
+    else:
+        major, rest = int(numeric[0]), numeric[1:]
+    minor = int(rest[0]) if rest else 0
+    patch = int(rest[1:]) if len(rest) > 1 else 0
+    return (major, minor, patch, hotfix)
 
 
 def select_license_type() -> str:

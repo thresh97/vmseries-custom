@@ -643,12 +643,25 @@ def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
         ]
         if not matching:
             raise RuntimeError(f"No images found matching prefix '{name_prefix}' in project '{image_project}'.")
-        # Sort by version numbers extracted from name for correct ordering.
-        # Use (int, str) tuples per segment so mixed types are always comparable.
-        def _version_key(name: str):
-            import re
-            return [(int(x), '') if x.isdigit() else (0, x) for x in re.split(r'[.\-]', name)]
-        matching.sort(key=lambda img: _version_key(img.name), reverse=True)
+        # Sort by parsed PAN-OS version. Image names encode versions as
+        # {major}{minor}{patch} with no separators, e.g.:
+        #   vmseries-flex-byol-1215  = 12.1.5
+        #   vmseries-flex-byol-10112 = 10.1.12  (10 < 12, so this is older)
+        # 2-digit majors are 10-20; 1-digit majors are 1-9.
+        def _pan_version_key(image_name: str):
+            ver = image_name.rsplit('-', 1)[-1]  # last segment, e.g. '1215' or '1114h6'
+            m = re.match(r'^(\d+?)(?:h(\d+))?$', ver)
+            if not m:
+                return (0, 0, 0, 0)
+            numeric, hotfix = m.group(1), int(m.group(2) or 0)
+            if len(numeric) >= 4 and 10 <= int(numeric[:2]) <= 20:
+                major, rest = int(numeric[:2]), numeric[2:]
+            else:
+                major, rest = int(numeric[0]), numeric[1:]
+            minor = int(rest[0]) if rest else 0
+            patch = int(rest[1:]) if len(rest) > 1 else 0
+            return (major, minor, patch, hotfix)
+        matching.sort(key=lambda img: _pan_version_key(img.name), reverse=True)
         latest = matching[0]
         LOGGER.info(f"✅ Found latest image: {latest.name} (self_link: {latest.self_link})")
         return latest.self_link
