@@ -643,10 +643,11 @@ def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
         ]
         if not matching:
             raise RuntimeError(f"No images found matching prefix '{name_prefix}' in project '{image_project}'.")
-        # Sort by version numbers extracted from name for correct ordering
+        # Sort by version numbers extracted from name for correct ordering.
+        # Use (int, str) tuples per segment so mixed types are always comparable.
         def _version_key(name: str):
             import re
-            return [int(x) if x.isdigit() else x for x in re.split(r'[.\-]', name)]
+            return [(int(x), '') if x.isdigit() else (0, x) for x in re.split(r'[.\-]', name)]
         matching.sort(key=lambda img: _version_key(img.name), reverse=True)
         latest = matching[0]
         LOGGER.info(f"✅ Found latest image: {latest.name} (self_link: {latest.self_link})")
