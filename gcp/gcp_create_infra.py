@@ -150,9 +150,14 @@ def load_state(state_file_path: str) -> Dict[str, Any]:
 
 
 def generate_prefix(length=6):
-    """Generates a secure random alphanumeric string for resource naming."""
-    alphabet = string.ascii_lowercase + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    """Generates a secure random alphanumeric string for resource naming.
+
+    GCP resource names must start with a lowercase letter, so the first
+    character is always drawn from ascii_lowercase.
+    """
+    first = secrets.choice(string.ascii_lowercase)
+    rest = ''.join(secrets.choice(string.ascii_lowercase + string.digits) for _ in range(length - 1))
+    return first + rest
 
 
 def generate_password(length=16):
