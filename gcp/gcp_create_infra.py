@@ -1690,6 +1690,39 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
 
         LOGGER.info(f"Resuming create-custom-image for prefix '{prefix}'. Completed steps: {actions_done or 'none'}")
 
+        # Step 1: Complete infrastructure creation if VM was never successfully created
+        if not instance_name:
+            LOGGER.info("=== Resuming Step 1: VM creation incomplete — re-running infrastructure creation ===")
+            iargs = original_args
+            ssh_pub_key, _ = get_and_validate_ssh_keys(ssh_key_file)
+            bootstrap_metadata = {
+                "authcodes": iargs.get("auth_code", ""),
+                "vm-series-auto-registration-pin-id": iargs.get("pin_id", ""),
+                "vm-series-auto-registration-pin-value": iargs.get("pin_value", ""),
+            }
+            full_name_tag = f"{prefix}-{iargs.get('name_tag', 'pa-fw')}"
+            state = create_infrastructure(
+                project_id=project_id,
+                region=region,
+                zone=zone,
+                name_tag=full_name_tag,
+                prefix=prefix,
+                state=state,
+                license_type=license_type,
+                machine_type=iargs.get("machine_type", "n2-standard-4"),
+                mgmt_cidr=iargs.get("mgmt_cidr", "10.0.0.0/24"),
+                untrust_cidr=iargs.get("untrust_cidr", "10.0.1.0/24"),
+                trust_cidr=iargs.get("trust_cidr", "10.0.2.0/24"),
+                allowed_ips=iargs.get("allowed_ips", ""),
+                ssh_pub_key_path=ssh_pub_key,
+                bootstrap_metadata=bootstrap_metadata,
+                custom_image_self_link=None,
+            )
+            monitor_chassis_ready(state["public_ip"], ssh_priv_key)
+            instance_name = state["instance_name"]
+            public_ip = state["public_ip"]
+            LOGGER.info("✅ Infrastructure created and chassis is ready.")
+
         # Wait for SSH if private-data-reset not yet done
         if "private-data-reset" not in actions_done and public_ip:
             LOGGER.info("Waiting for firewall to be reachable via SSH before resuming...")
