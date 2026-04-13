@@ -16,10 +16,11 @@ trust-vpc   (10.0.2.0/24)  — NIC2: trust dataplane, internal only (no external
 
 - Python 3.12+
 - GCP project with the **Compute Engine API** enabled
-- GCP credentials configured:
+- GCP credentials configured for Application Default Credentials (ADC):
   ```
   gcloud auth application-default login
   ```
+  > **Note:** `gcloud auth login` (for the gcloud CLI) is **not** sufficient. Python's `google.auth.default()` requires ADC, which is set up separately with the command above.
 - Accepted Marketplace terms for Palo Alto Networks VM-Series (if using Marketplace images)
 - Python dependencies:
   ```
@@ -192,7 +193,7 @@ VM-Series on GCP is bootstrapped via **instance metadata key-value pairs**. The 
 
 ```bash
 gcloud compute images list \
-  --project paloaltonetworks-public \
+  --project paloaltonetworksgcp-public \
   --no-standard-images \
   --filter="name~'vmseries-flex'" \
   --format="table(name,creationTimestamp,family,status)" \
@@ -203,7 +204,7 @@ gcloud compute images list \
 
 ```bash
 gcloud compute images list \
-  --project paloaltonetworks-public \
+  --project paloaltonetworksgcp-public \
   --no-standard-images \
   --filter="name~'vmseries-flex-byol'" \
   --format="table(name,creationTimestamp,family)" \
@@ -214,7 +215,7 @@ gcloud compute images list \
 
 ```bash
 gcloud compute images describe-from-family vmseries-flex-byol-1014 \
-  --project paloaltonetworks-public \
+  --project paloaltonetworksgcp-public \
   --format="value(name,selfLink,creationTimestamp)"
 ```
 
@@ -283,14 +284,14 @@ Maps license types to GCP image project/family. Update this file if PAN publishe
 
 ```yaml
 byol:
-  project: paloaltonetworks-public
-  family: vmseries-flex-byol-1014
+  project: paloaltonetworksgcp-public
+  family: vmseries-flex-byol-1215
 bundle1:
-  project: paloaltonetworks-public
-  family: vmseries-flex-bundle1-1014
+  project: paloaltonetworksgcp-public
+  family: vmseries-flex-bundle1-1215
 bundle2:
-  project: paloaltonetworks-public
-  family: vmseries-flex-bundle2-1014
+  project: paloaltonetworksgcp-public
+  family: vmseries-flex-bundle2-1215
 ```
 
 > **Note:** GCP image family names include a content version suffix (e.g., `1014` = content version 10.14). Run `gcp_marketplace_explorer.py list-images` to discover the currently available families and update this file accordingly.

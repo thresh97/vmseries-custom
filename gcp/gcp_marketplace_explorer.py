@@ -130,7 +130,7 @@ def list_marketplace_images(license_type: str) -> None:
 
     if not matching:
         LOGGER.warning(f"No VM-Series images found matching family '{image_family}' in project '{image_project}'.")
-        LOGGER.warning("Try running: gcloud compute images list --project paloaltonetworks-public --no-standard-images")
+        LOGGER.warning("Try running: gcloud compute images list --project paloaltonetworksgcp-public --no-standard-images")
         return
 
     sorted_images = sorted(matching, key=lambda img: _version_sort_key(img.name), reverse=True)
