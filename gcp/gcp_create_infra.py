@@ -365,8 +365,14 @@ def upgrade_panos_api(public_ip: str, password: str, target_version: str) -> Opt
         updater.upgrade_to_version(target_version)
         LOGGER.info("✅ PAN-OS upgrade process completed successfully.")
     except Exception as e:
-        if "no element found" in str(e) or "ParseError" in str(e):
-            LOGGER.info("Device is rebooting after upgrade — XML API unavailable as expected. Continuing.")
+        err = str(e)
+        # Network drops during reboot are expected — the firewall closes the connection
+        # while pan-os-python is waiting for syncreboot() to complete.
+        if any(x in err for x in ("no element found", "ParseError", "Network is down",
+                                   "Connection reset", "Connection refused", "timed out",
+                                   "RemoteDisconnected", "EOF occurred")):
+            LOGGER.info("Device is rebooting after upgrade — connection dropped as expected. "
+                        "Waiting for SSH connectivity in next step.")
         else:
             raise
 
