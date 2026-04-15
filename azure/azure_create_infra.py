@@ -88,6 +88,7 @@ except ImportError as e:
 try:
     from azure.identity import DefaultAzureCredential
     from azure.mgmt.compute import ComputeManagementClient
+    from azure.mgmt.marketplaceordering import MarketplaceOrderingAgreements
     from azure.mgmt.network import NetworkManagementClient
     from azure.mgmt.resource import ResourceManagementClient
     from azure.mgmt.subscription import SubscriptionClient
@@ -791,14 +792,14 @@ def create_infrastructure(
         ).result()
         state["public_ip_mgmt_id"] = pip_mgmt.id
         state["public_ip_mgmt_name"] = pip_mgmt_name
-        state["public_ip"] = pip_mgmt.ip_address
+        state["management_public_ip"] = pip_mgmt.ip_address
         save_state(prefix, state)
         LOGGER.info(f"✅ Management Public IP created: {pip_mgmt.ip_address}")
     else:
         # Refresh public IP address in case it wasn't captured
-        if not state.get("public_ip"):
+        if not state.get("management_public_ip"):
             pip_mgmt = network_client.public_ip_addresses.get(rg_name, pip_mgmt_name)
-            state["public_ip"] = pip_mgmt.ip_address
+            state["management_public_ip"] = pip_mgmt.ip_address
             save_state(prefix, state)
         LOGGER.info(f"✅ Management Public IP exists: {state.get('public_ip')}")
 
@@ -961,6 +962,31 @@ def create_infrastructure(
             },
         }
 
+        # Accept Marketplace terms if deploying from a Marketplace image.
+        # Without this, VM creation fails with 404 "entity not found" even
+        # when the image exists and the plan is correctly set.
+        if not custom_image_id:
+            try:
+                ordering_client = MarketplaceOrderingAgreements(credential, subscription_id)
+                terms = ordering_client.marketplace_agreements.get(
+                    publisher_id="paloaltonetworks",
+                    offer_id="vmseries-flex",
+                    plan_id=sku,
+                )
+                if not terms.accepted:
+                    terms.accepted = True
+                    ordering_client.marketplace_agreements.create(
+                        publisher_id="paloaltonetworks",
+                        offer_id="vmseries-flex",
+                        plan_id=sku,
+                        parameters=terms,
+                    )
+                    LOGGER.info("✅ Marketplace terms accepted for %s/%s", "vmseries-flex", sku)
+                else:
+                    LOGGER.info("Marketplace terms already accepted for %s/%s", "vmseries-flex", sku)
+            except Exception as e:
+                LOGGER.warning("Could not accept Marketplace terms (continuing): %s", e)
+
         vm = compute_client.virtual_machines.begin_create_or_update(
             rg_name, vm_name, vm_params
         ).result()
@@ -971,7 +997,7 @@ def create_infrastructure(
 
         # Refresh management public IP now that VM is running
         pip_mgmt = network_client.public_ip_addresses.get(rg_name, state["public_ip_mgmt_name"])
-        state["public_ip"] = pip_mgmt.ip_address
+        state["management_public_ip"] = pip_mgmt.ip_address
         save_state(prefix, state)
         LOGGER.info(f"✅ Management public IP: {state['public_ip']}")
     else:
@@ -1192,7 +1218,7 @@ def handle_create(args: argparse.Namespace) -> None:
             custom_data=custom_data_content,
             custom_image_id=args.custom_image_id,
         )
-        monitor_chassis_ready(final_state["public_ip"], ssh_priv_key)
+        monitor_chassis_ready(final_state["management_public_ip"], ssh_priv_key)
         LOGGER.info(f"🎉 Infrastructure '{args.name_tag}' deployed successfully!")
         LOGGER.info(f"Management IP: {final_state['public_ip']}")
         LOGGER.info(f"To destroy: python azure_create_infra.py destroy --deployment-file {prefix}-state.json")
@@ -1221,7 +1247,7 @@ def handle_set_admin_password(args: argparse.Namespace) -> None:
     """Handler for the 'set-admin-password' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         if not public_ip:
             raise RuntimeError("Public IP not found in state file.")
 
@@ -1253,7 +1279,7 @@ def handle_upgrade_content(args: argparse.Namespace) -> None:
     """Handler for the 'upgrade-content' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
 
         if not public_ip:
@@ -1283,7 +1309,7 @@ def handle_upgrade_panos(args: argparse.Namespace) -> None:
     """Handler for the 'upgrade-panos' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
 
         if not public_ip:
@@ -1315,7 +1341,7 @@ def handle_upgrade_antivirus(args: argparse.Namespace) -> None:
     """Handler for the 'upgrade-antivirus' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
 
         if not public_ip:
@@ -1437,9 +1463,9 @@ def handle_create_custom_image(args: argparse.Namespace) -> None:
             custom_data=bootstrap_custom_data,
             custom_image_id=None,
         )
-        monitor_chassis_ready(final_state["public_ip"], ssh_priv_key)
+        monitor_chassis_ready(final_state["management_public_ip"], ssh_priv_key)
         state = final_state
-        public_ip = state["public_ip"]
+        public_ip = state["management_public_ip"]
         vm_name = state["vm_name"]
         resource_group = state["resource_group"]
         region = state["region"]
@@ -1588,7 +1614,7 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
         vm_name = state.get("vm_name")
         vm_id = state.get("vm_id")
         resource_group = state.get("resource_group")
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         original_args = state.get("invocation_args", {})
 
         if not region or not prefix or not resource_group:
@@ -1649,10 +1675,10 @@ def handle_create_custom_image_restart(args: argparse.Namespace) -> None:
                 ssh_pub_key_path=ssh_pub_key,
                 custom_data=bootstrap_custom_data,
             )
-            monitor_chassis_ready(state["public_ip"], ssh_priv_key)
+            monitor_chassis_ready(state["management_public_ip"], ssh_priv_key)
             vm_id = state["vm_id"]
             vm_name = state["vm_name"]
-            public_ip = state["public_ip"]
+            public_ip = state["management_public_ip"]
             LOGGER.info("✅ VM created and chassis is ready.")
 
         # Wait for SSH if private-data-reset not yet done
