@@ -969,6 +969,7 @@ def create_infrastructure(
             try:
                 ordering_client = MarketplaceOrderingAgreements(credential, subscription_id)
                 terms = ordering_client.marketplace_agreements.get(
+                    offer_type="virtualmachine",
                     publisher_id="paloaltonetworks",
                     offer_id="vmseries-flex",
                     plan_id=sku,
@@ -976,6 +977,7 @@ def create_infrastructure(
                 if not terms.accepted:
                     terms.accepted = True
                     ordering_client.marketplace_agreements.create(
+                        offer_type="virtualmachine",
                         publisher_id="paloaltonetworks",
                         offer_id="vmseries-flex",
                         plan_id=sku,
