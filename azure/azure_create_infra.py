@@ -997,6 +997,10 @@ def create_infrastructure(
         save_state(prefix, state)
         LOGGER.info(f"✅ VM created: {vm.id}")
 
+        # ARM accepts the resource before the VM is actually provisioned.
+        # Poll instance view until running (or fail fast on provisioning error).
+        wait_for_vm_running(compute_client, rg_name, vm_name)
+
         # Refresh management public IP now that VM is running
         pip_mgmt = network_client.public_ip_addresses.get(rg_name, state["public_ip_mgmt_name"])
         state["management_public_ip"] = pip_mgmt.ip_address
@@ -1006,6 +1010,59 @@ def create_infrastructure(
         LOGGER.info(f"✅ VM exists: {state['vm_id']}")
 
     return state
+
+
+def wait_for_vm_running(
+    compute_client: ComputeManagementClient,
+    rg_name: str,
+    vm_name: str,
+    timeout_minutes: int = 10,
+    poll_interval: int = 15,
+) -> None:
+    """
+    Poll the VM instance view until it reaches PowerState/running, raising
+    immediately if Azure reports ProvisioningState/failed.
+
+    begin_create_or_update().result() returns when ARM accepts the resource,
+    not when the VM is actually provisioned and booted. Azure can silently fail
+    provisioning after the ARM call returns — this catches that.
+    """
+    deadline = time.time() + timeout_minutes * 60
+    LOGGER.info(f"Waiting for VM '{vm_name}' to reach running state (max {timeout_minutes}m)...")
+
+    while time.time() < deadline:
+        try:
+            vm = compute_client.virtual_machines.get(
+                rg_name, vm_name, expand="instanceView"
+            )
+        except Exception as exc:
+            LOGGER.warning(f"Could not query VM instance view: {exc} — retrying...")
+            time.sleep(poll_interval)
+            continue
+
+        statuses = {
+            s.code: s.display_status
+            for s in (vm.instance_view.statuses or [])
+            if s.code
+        }
+        LOGGER.info(f"VM statuses: {statuses}")
+
+        if any("failed" in code.lower() for code in statuses):
+            raise RuntimeError(
+                f"VM provisioning failed. Statuses: {statuses}. "
+                "Check the Azure portal activity log for details."
+            )
+
+        if statuses.get("PowerState/running"):
+            LOGGER.info("✅ VM is running.")
+            return
+
+        time.sleep(poll_interval)
+
+    raise RuntimeError(
+        f"VM '{vm_name}' did not reach running state within {timeout_minutes} minutes. "
+        "Check the Azure portal for provisioning errors."
+    )
 
 
 def monitor_chassis_ready(public_ip: str, ssh_priv_key_path: Path) -> None:
