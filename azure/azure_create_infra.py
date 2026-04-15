@@ -1229,6 +1229,54 @@ def handle_create(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def handle_create_restart(args: argparse.Namespace) -> None:
+    """Handler for the 'create-restart' command. Resumes an interrupted 'create'."""
+    try:
+        state = load_state(args.deployment_file)
+        prefix = state.get("deployment_prefix")
+        if not prefix:
+            raise RuntimeError("State file is invalid and missing 'deployment_prefix'.")
+
+        original_args = state.get("invocation_args")
+        if not original_args:
+            raise RuntimeError("State file is missing 'invocation_args'. Cannot restart.")
+
+        ssh_key_file = args.ssh_key_file or original_args.get("ssh_key_file")
+        if not ssh_key_file:
+            raise ValueError("SSH key file not specified and not found in state file.")
+
+        ssh_pub_key, ssh_priv_key = get_and_validate_ssh_keys(ssh_key_file)
+
+        credential = DefaultAzureCredential()
+        subscription_id = state.get("subscription_id") or get_subscription_id(credential, None)
+
+        final_state = create_infrastructure(
+            credential=credential,
+            subscription_id=subscription_id,
+            region=state["region"],
+            name_tag=original_args["name_tag"],
+            prefix=prefix,
+            state=state,
+            license_type=original_args.get("license_type", "byol"),
+            version=original_args.get("version"),
+            vm_size=original_args.get("vm_size", "Standard_D8s_v5"),
+            vnet_cidr=original_args.get("vnet_cidr", "10.0.0.0/16"),
+            public_subnet_cidr=original_args.get("public_subnet_cidr", "10.0.1.0/24"),
+            private_subnet_cidr=original_args.get("private_subnet_cidr", "10.0.2.0/24"),
+            allowed_ips=original_args.get("allowed_ips", []),
+            ssh_pub_key_path=ssh_pub_key,
+            custom_data=original_args.get("custom_data"),
+            custom_image_id=original_args.get("custom_image_id"),
+        )
+        monitor_chassis_ready(final_state["management_public_ip"], ssh_priv_key)
+        LOGGER.info(f"🎉 Infrastructure '{original_args['name_tag']}' resumed successfully!")
+        LOGGER.info(f"Management IP: {final_state['management_public_ip']}")
+        LOGGER.info(f"To destroy: python azure_create_infra.py destroy --deployment-file {prefix}-state.json")
+    except (AzureError, RuntimeError, ValueError) as e:
+        LOGGER.error(f"An error occurred: {e}", exc_info=True)
+        sys.exit(1)
+
+
 def handle_destroy(args: argparse.Namespace) -> None:
     """Handler for the 'destroy' command."""
     try:
@@ -1863,6 +1911,11 @@ def main() -> None:
     parser_create.set_defaults(func=handle_create)
 
     # --- Destroy Command ---
+    parser_restart = subparsers.add_parser("create-restart", help="Resume an interrupted 'create' using its state file.")
+    parser_restart.add_argument("--deployment-file", required=True, help="Path to the state file from the interrupted create.")
+    parser_restart.add_argument("--ssh-key-file", required=False, metavar="PATH", help="Path to SSH key file. If omitted, uses the path from the state file.")
+    parser_restart.set_defaults(func=handle_create_restart)
+
     parser_destroy = subparsers.add_parser("destroy", help="Delete the Resource Group and all resources inside it.")
     parser_destroy.add_argument("--deployment-file", required=True, help="Path to the deployment state file.")
     parser_destroy.set_defaults(func=handle_destroy)
