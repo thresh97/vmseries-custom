@@ -513,7 +513,7 @@ def create_infrastructure(
         LOGGER.info(f"Waiting for instance {instance.id} to enter 'running' state...")
         instance.wait_until_running()
         instance.reload()
-        state["public_ip"] = instance.public_ip_address
+        state["management_public_ip"] = instance.public_ip_address
         save_state(prefix, state)
         LOGGER.info(f"✅ Instance is running: {instance.id} at {instance.public_ip_address}")
 
@@ -1345,7 +1345,7 @@ def handle_create(args: argparse.Namespace) -> None:
             allowed_ips=args.allowed_ips, ssh_pub_key_path=ssh_pub_key, user_data=user_data_content,
             ami_id_override=args.ami_id,
         )
-        monitor_and_run_command(final_state["public_ip"], ssh_priv_key, final_state["region"], final_state["instance_id"])
+        monitor_and_run_command(final_state["management_public_ip"], ssh_priv_key, final_state["region"], final_state["instance_id"])
         LOGGER.info(f"🎉 Infrastructure '{full_name_tag}' deployed successfully!")
         LOGGER.info(f"To destroy it, run: python aws_create_infra.py destroy --deployment-file {prefix}-state.json")
     except (ClientError, RuntimeError, ValueError) as e:
@@ -1396,7 +1396,7 @@ def handle_create_restart(args: argparse.Namespace) -> None:
             user_data=user_data_content,
             ami_id_override=ami_id_override,
         )
-        monitor_and_run_command(final_state["public_ip"], ssh_priv_key, final_state["region"], final_state["instance_id"])
+        monitor_and_run_command(final_state["management_public_ip"], ssh_priv_key, final_state["region"], final_state["instance_id"])
         LOGGER.info(f"🎉 Resumed infrastructure '{full_name_tag}' deployed successfully!")
         LOGGER.info(f"To destroy it, run: python aws_create_infra.py destroy --deployment-file {args.deployment_file}")
 
@@ -1426,7 +1426,7 @@ def handle_set_admin_password(args: argparse.Namespace) -> None:
     """Handler for the 'set-admin-password' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         if not public_ip:
             raise RuntimeError("Public IP not found in state file.")
         
@@ -1458,12 +1458,12 @@ def handle_license_firewall(args: argparse.Namespace) -> None:
     """Handler for the 'license-firewall' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         instance_id = state.get("instance_id")
         region = state.get("region")
 
         if not public_ip or not instance_id or not region:
-            raise RuntimeError("State file is missing required information (public_ip, instance_id, region).")
+            raise RuntimeError("State file is missing required information (management_public_ip, instance_id, region).")
 
         ssh_key_file = args.ssh_key_file or state.get('invocation_args', {}).get('ssh_key_file')
         if not ssh_key_file:
@@ -1493,7 +1493,7 @@ def handle_upgrade_content(args: argparse.Namespace) -> None:
     """Handler for the 'upgrade-content' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
 
         if not public_ip:
@@ -1522,7 +1522,7 @@ def handle_upgrade_panos(args: argparse.Namespace) -> None:
     """Handler for the PAN-OS upgrade command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
         instance_id = state.get("instance_id")
         region = state.get("region")
@@ -1557,12 +1557,12 @@ def handle_private_data_reset(args: argparse.Namespace) -> None:
     """Handler for the 'private-data-reset' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         instance_id = state.get("instance_id")
         region = state.get("region")
 
         if not public_ip or not instance_id or not region:
-            raise RuntimeError("State file is missing required information (public_ip, instance_id, region).")
+            raise RuntimeError("State file is missing required information (management_public_ip, instance_id, region).")
 
         ssh_key_file = args.ssh_key_file or state.get('invocation_args', {}).get('ssh_key_file')
         if not ssh_key_file:
@@ -1580,7 +1580,7 @@ def handle_upgrade_antivirus(args: argparse.Namespace) -> None:
     """Handler for the 'upgrade-antivirus' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
 
         if not public_ip:
@@ -1609,7 +1609,7 @@ def handle_upgrade_vmseries_plugin(args: argparse.Namespace) -> None:
     """Handler for the 'upgrade-vmseries-plugin' command."""
     try:
         state = load_state(args.deployment_file)
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         password = state.get("admin_password")
 
         if not public_ip:
@@ -1676,9 +1676,9 @@ def handle_create_custom_ami(args: argparse.Namespace) -> None:
             allowed_ips=args.allowed_ips, ssh_pub_key_path=ssh_pub_key, user_data=bootstrap_user_data,
             ami_id_override=None,
         )
-        monitor_and_run_command(final_state["public_ip"], ssh_priv_key, final_state["region"], final_state["instance_id"])
+        monitor_and_run_command(final_state["management_public_ip"], ssh_priv_key, final_state["region"], final_state["instance_id"])
         state = final_state
-        public_ip = state["public_ip"]
+        public_ip = state["management_public_ip"]
         instance_id = state["instance_id"]
         region = state["region"]
         LOGGER.info("✅ Infrastructure created and chassis is ready.")
@@ -1806,7 +1806,7 @@ def handle_create_custom_ami_restart(args: argparse.Namespace) -> None:
         prefix = state.get("deployment_prefix")
         region = state.get("region")
         instance_id = state.get("instance_id")
-        public_ip = state.get("public_ip")
+        public_ip = state.get("management_public_ip")
         original_args = state.get("invocation_args", {})
 
         if not instance_id or not region or not prefix:
