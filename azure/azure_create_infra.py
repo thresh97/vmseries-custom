@@ -801,7 +801,7 @@ def create_infrastructure(
             pip_mgmt = network_client.public_ip_addresses.get(rg_name, pip_mgmt_name)
             state["management_public_ip"] = pip_mgmt.ip_address
             save_state(prefix, state)
-        LOGGER.info(f"✅ Management Public IP exists: {state.get('public_ip')}")
+        LOGGER.info(f"✅ Management Public IP exists: {state.get('management_public_ip')}")
 
     # --- Public IP for Untrust (eth1) ---
     pip_untrust_name = f"{name_tag}-pip-untrust"
@@ -1001,7 +1001,7 @@ def create_infrastructure(
         pip_mgmt = network_client.public_ip_addresses.get(rg_name, state["public_ip_mgmt_name"])
         state["management_public_ip"] = pip_mgmt.ip_address
         save_state(prefix, state)
-        LOGGER.info(f"✅ Management public IP: {state['public_ip']}")
+        LOGGER.info(f"✅ Management public IP: {state['management_public_ip']}")
     else:
         LOGGER.info(f"✅ VM exists: {state['vm_id']}")
 
@@ -1222,7 +1222,7 @@ def handle_create(args: argparse.Namespace) -> None:
         )
         monitor_chassis_ready(final_state["management_public_ip"], ssh_priv_key)
         LOGGER.info(f"🎉 Infrastructure '{args.name_tag}' deployed successfully!")
-        LOGGER.info(f"Management IP: {final_state['public_ip']}")
+        LOGGER.info(f"Management IP: {final_state['management_public_ip']}")
         LOGGER.info(f"To destroy: python azure_create_infra.py destroy --deployment-file {prefix}-state.json")
     except (AzureError, RuntimeError, ValueError) as e:
         LOGGER.error(f"An error occurred: {e}", exc_info=True)
