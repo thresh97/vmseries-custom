@@ -631,22 +631,39 @@ def _wait_for_region_operation(operation_client: compute_v1.RegionOperationsClie
         time.sleep(5)
 
 
-def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
-    """Returns the self_link of the latest VM-Series marketplace image for the given license type."""
+def get_latest_marketplace_image(project_id: str, license_type: str,
+                                  version_filter: Optional[str] = None) -> str:
+    """
+    Returns the self_link of the best-matching VM-Series marketplace image.
+
+    If version_filter is provided (e.g. '11.1' or '11.1.6'), selects the
+    latest hotfix in that X.Y or X.Y.Z family. Without a filter, selects
+    the overall latest image across all versions.
+    """
     image_config = MARKETPLACE_IMAGES.get(license_type)
     if not image_config:
         raise ValueError(f"Unknown license type '{license_type}'. Check marketplace_images.yaml.")
 
     image_project = image_config["project"]
     image_family = image_config["family"]
-    # Use the family value as a name prefix (everything before the last "-segment")
     name_prefix = image_family.rsplit("-", 1)[0]  # e.g. "vmseries-flex-byol-1215" -> "vmseries-flex-byol"
 
+    # Parse version_filter into a tuple prefix for comparison
+    version_tuple: Optional[tuple] = None
+    if version_filter:
+        parts = version_filter.split(".")
+        try:
+            version_tuple = tuple(int(p) for p in parts)
+        except ValueError:
+            raise ValueError(f"Invalid version filter '{version_filter}'. Use 'X.Y' or 'X.Y.Z'.")
+
     images_client = compute_v1.ImagesClient()
-    LOGGER.info(f"Querying images in project '{image_project}' with name prefix '{name_prefix}'...")
+    if version_filter:
+        LOGGER.info(f"Querying GCP images for '{license_type}' version '{version_filter}'...")
+    else:
+        LOGGER.info(f"Querying GCP images for '{license_type}' (latest)...")
     try:
         all_images = list(images_client.list(project=image_project))
-        # Exclude special-purpose variants (tf=Terraform, mp=Marketplace, mptf=both)
         _EXCLUDED = ("-tf-", "-mp-", "-mptf-")
         matching = [
             img for img in all_images
@@ -654,13 +671,12 @@ def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
         ]
         if not matching:
             raise RuntimeError(f"No images found matching prefix '{name_prefix}' in project '{image_project}'.")
-        # Sort by parsed PAN-OS version. Image names encode versions as
-        # {major}{minor}{patch} with no separators, e.g.:
-        #   vmseries-flex-byol-1215  = 12.1.5
-        #   vmseries-flex-byol-10112 = 10.1.12  (10 < 12, so this is older)
-        # 2-digit majors are 10-20; 1-digit majors are 1-9.
+
+        # GCP image names encode PAN-OS versions as concatenated digits, e.g.:
+        #   vmseries-flex-byol-1215    = 12.1.5
+        #   vmseries-flex-byol-111612  = 11.1.6-h12 (two-digit major 10-20)
         def _pan_version_key(image_name: str):
-            ver = image_name.rsplit('-', 1)[-1]  # last segment, e.g. '1215' or '1114h6'
+            ver = image_name.rsplit('-', 1)[-1]
             m = re.match(r'^(\d+?)(?:h(\d+))?$', ver)
             if not m:
                 return (0, 0, 0, 0)
@@ -672,9 +688,22 @@ def get_latest_marketplace_image(project_id: str, license_type: str) -> str:
             minor = int(rest[0]) if rest else 0
             patch = int(rest[1:]) if len(rest) > 1 else 0
             return (major, minor, patch, hotfix)
+
+        if version_tuple:
+            n = len(version_tuple)
+            matching = [
+                img for img in matching
+                if _pan_version_key(img.name)[:n] == version_tuple
+            ]
+            if not matching:
+                raise RuntimeError(
+                    f"No images found for version '{version_filter}' (license: {license_type}). "
+                    "Run 'python gcp_marketplace_explorer.py list-images' to see available versions."
+                )
+
         matching.sort(key=lambda img: _pan_version_key(img.name), reverse=True)
         latest = matching[0]
-        LOGGER.info(f"✅ Found latest image: {latest.name} (self_link: {latest.self_link})")
+        LOGGER.info(f"✅ Selected image: {latest.name} (self_link: {latest.self_link})")
         return latest.self_link
     except RuntimeError:
         raise
@@ -701,6 +730,7 @@ def create_infrastructure(
     ssh_pub_key_path: Path,
     bootstrap_metadata: Optional[Dict[str, str]] = None,
     custom_image_self_link: Optional[str] = None,
+    version: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Creates or resumes the full GCP stack for the VM-Series firewall."""
     networks_client = compute_v1.NetworksClient()
@@ -960,7 +990,7 @@ def create_infrastructure(
             source_image = custom_image_self_link
             LOGGER.info(f"Using custom image: {source_image}")
         else:
-            source_image = get_latest_marketplace_image(project_id, license_type)
+            source_image = get_latest_marketplace_image(project_id, license_type, version)
 
         # Build instance metadata for bootstrap
         metadata_items = [
@@ -1307,6 +1337,7 @@ def handle_create(args: argparse.Namespace) -> None:
             ssh_pub_key_path=ssh_pub_key,
             bootstrap_metadata=bootstrap_metadata,
             custom_image_self_link=args.custom_image_self_link,
+            version=getattr(args, 'version', None),
         )
         monitor_chassis_ready(final_state["public_ip"], ssh_priv_key)
         LOGGER.info(f"🎉 Infrastructure '{full_name_tag}' deployed successfully!")
@@ -1912,6 +1943,7 @@ def main() -> None:
     parser_create.add_argument("--license-type", required=False, default="byol",
                                choices=license_choices,
                                help="VM-Series license type (default: byol). Required if --custom-image-self-link is not provided.")
+    parser_create.add_argument("--version", required=False, metavar="X.Y[.Z]", help="Marketplace image version filter (e.g. '11.1' for latest 11.1.x, '11.1.6' for exact patch).")
     parser_create.add_argument("--custom-image-self-link", required=False, help="GCP image self_link of a custom image to use instead of Marketplace.")
     parser_create.add_argument("--ssh-key-file", required=False, default="~/.ssh/id_rsa.pub", metavar="PATH", help="Path to SSH public or private key file (default: ~/.ssh/id_rsa.pub).")
     parser_create.add_argument("--allowed-ips", required=True, type=lambda s: [item.strip() for item in s.split(',')], help="Comma-separated IPv4 CIDR blocks for SSH/HTTPS access to the mgmt interface.")
